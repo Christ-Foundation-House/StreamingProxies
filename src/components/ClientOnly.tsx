@@ -3,33 +3,33 @@
 import { ReactNode, useEffect, useState } from 'react';
 
 interface ClientOnlyProps {
-  /**
-   * The content to render only on the client side
-   */
-  children: ReactNode;
-  
-  /**
-   * Optional fallback content to show during server-side rendering
-   * and initial client-side hydration. If not provided, nothing is rendered.
-   */
-  fallback?: ReactNode;
-  
-  /**
-   * Optional loading content to show while transitioning from fallback to children
-   */
-  loading?: ReactNode;
-  
-  /**
-   * Delay in milliseconds before showing children (useful for smooth transitions)
-   * @default 0
-   */
-  delay?: number;
-  
-  /**
-   * Whether to show a loading state during the delay period
-   * @default true
-   */
-  showLoadingDuringDelay?: boolean;
+    /**
+     * The content to render only on the client side
+     */
+    children: ReactNode;
+
+    /**
+     * Optional fallback content to show during server-side rendering
+     * and initial client-side hydration. If not provided, nothing is rendered.
+     */
+    fallback?: ReactNode;
+
+    /**
+     * Optional loading content to show while transitioning from fallback to children
+     */
+    loading?: ReactNode;
+
+    /**
+     * Delay in milliseconds before showing children (useful for smooth transitions)
+     * @default 0
+     */
+    delay?: number;
+
+    /**
+     * Whether to show a loading state during the delay period
+     * @default true
+     */
+    showLoadingDuringDelay?: boolean;
 }
 
 /**
@@ -65,41 +65,41 @@ interface ClientOnlyProps {
  * ```
  */
 export function ClientOnly({
-  children,
-  fallback = null,
-  loading = null,
-  delay = 0,
-  showLoadingDuringDelay = true
+    children,
+    fallback = null,
+    loading = null,
+    delay = 0,
+    showLoadingDuringDelay = true
 }: ClientOnlyProps) {
-  const [hasMounted, setHasMounted] = useState(false);
-  const [isDelayComplete, setIsDelayComplete] = useState(delay === 0);
+    const [hasMounted, setHasMounted] = useState(false);
+    const [isDelayComplete, setIsDelayComplete] = useState(delay === 0);
 
-  useEffect(() => {
-    // Mark as mounted to indicate we're on the client side
-    setHasMounted(true);
+    useEffect(() => {
+        // Mark as mounted to indicate we're on the client side
+        setHasMounted(true);
 
-    // Handle delay if specified
-    if (delay > 0) {
-      const timer = setTimeout(() => {
-        setIsDelayComplete(true);
-      }, delay);
+        // Handle delay if specified
+        if (delay > 0) {
+            const timer = setTimeout(() => {
+                setIsDelayComplete(true);
+            }, delay);
 
-      return () => clearTimeout(timer);
+            return () => clearTimeout(timer);
+        }
+    }, [delay]);
+
+    // During server-side rendering, always show fallback
+    if (!hasMounted) {
+        return <>{fallback}</>;
     }
-  }, [delay]);
 
-  // During server-side rendering, always show fallback
-  if (!hasMounted) {
-    return <>{fallback}</>;
-  }
+    // On client side, but still within delay period
+    if (!isDelayComplete) {
+        return <>{showLoadingDuringDelay && loading ? loading : fallback}</>;
+    }
 
-  // On client side, but still within delay period
-  if (!isDelayComplete) {
-    return <>{showLoadingDuringDelay && loading ? loading : fallback}</>;
-  }
-
-  // Client-side rendering after delay (if any) is complete
-  return <>{children}</>;
+    // Client-side rendering after delay (if any) is complete
+    return <>{children}</>;
 }
 
 /**
@@ -126,13 +126,13 @@ export function ClientOnly({
  * ```
  */
 export function useIsClient(): boolean {
-  const [isClient, setIsClient] = useState(false);
+    const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
-  return isClient;
+    return isClient;
 }
 
 export default ClientOnly;

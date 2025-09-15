@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { 
-  type StreamingProxy, 
-  type SystemStats, 
-  type UseRealTimeReturn, 
+import {
+  type StreamingProxy,
+  type SystemStats,
+  type UseRealTimeReturn,
   type HealthCheckResult,
 } from '../types';
 import type { RealTimeUpdate } from '../types/realtime';
@@ -18,9 +18,9 @@ type WebSocketMessage = {
 
 const isWebSocketMessage = (data: unknown): data is WebSocketMessage => {
   return (
-    typeof data === 'object' && 
-    data !== null && 
-    'type' in data && 
+    typeof data === 'object' &&
+    data !== null &&
+    'type' in data &&
     'data' in data
   );
 };
@@ -39,13 +39,13 @@ export function useRealTime(): UseRealTimeReturn {
       wsRef.current.onclose = null;
       wsRef.current.onerror = null;
       wsRef.current.onmessage = null;
-      
+
       if (wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.close();
       }
       wsRef.current = null;
     }
-    
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -59,24 +59,24 @@ export function useRealTime(): UseRealTimeReturn {
 
     try {
       // In a real app, this would connect to your WebSocket server
-      const wsUrl = process.env.NODE_ENV === 'development' 
-        ? 'ws://localhost:3001/ws' 
+      const wsUrl = process.env.NODE_ENV === 'development'
+        ? 'ws://localhost:3001/ws'
         : 'wss://your-domain.com/ws';
-      
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       const handleMessage = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           if (!isWebSocketMessage(data)) {
             throw new Error('Invalid message format');
           }
-          
+
           // Create a properly typed update based on the message type
           const timestamp = new Date();
-          
+
           switch (data.type) {
             case 'stream_count': {
               const { proxyId, count } = data.data as { proxyId: unknown; count: unknown };
@@ -90,7 +90,7 @@ export function useRealTime(): UseRealTimeReturn {
               });
               break;
             }
-              
+
             case 'system_stats':
               setLastUpdate({
                 type: 'system_stats',
@@ -98,7 +98,7 @@ export function useRealTime(): UseRealTimeReturn {
                 timestamp
               });
               break;
-              
+
             case 'health_check': {
               const healthData = data.data as Omit<HealthCheckResult, 'lastChecked'> & { lastChecked: string };
               setLastUpdate({
@@ -111,7 +111,7 @@ export function useRealTime(): UseRealTimeReturn {
               });
               break;
             }
-              
+
             case 'proxy_status':
             default:
               setLastUpdate({
@@ -141,14 +141,14 @@ export function useRealTime(): UseRealTimeReturn {
       const handleClose = () => {
         setConnected(false);
         wsRef.current = null;
-        
+
         // Auto-reconnect with exponential backoff
         if (reconnectAttemptsRef.current < SYSTEM_CONFIG.MAX_WEBSOCKET_RECONNECT_ATTEMPTS) {
           const delay = Math.min(
             SYSTEM_CONFIG.WEBSOCKET_RECONNECT_INTERVAL_MS * Math.pow(2, reconnectAttemptsRef.current),
             30000
           );
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptsRef.current++;
             connect();
@@ -174,12 +174,12 @@ export function useRealTime(): UseRealTimeReturn {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
-    
+
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-    
+
     setConnected(false);
     reconnectAttemptsRef.current = 0;
   }, []);
@@ -194,7 +194,7 @@ export function useRealTime(): UseRealTimeReturn {
 
   useEffect(() => {
     connect();
-    
+
     return () => {
       disconnect();
     };

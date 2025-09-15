@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Server, Globe, Settings, CheckCircle } from 'lucide-react';
 
+import AdminErrorBoundary from '../_components/AdminErrorBoundary';
+
 export default function CreateProxy() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
@@ -241,7 +243,8 @@ export default function CreateProxy() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AdminErrorBoundary pageName="Create Proxy" showAdminActions={true}>
+      <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -323,5 +326,6 @@ export default function CreateProxy() {
         </Card>
       </div>
     </div>
+    </AdminErrorBoundary>
   );
 }
