@@ -7,6 +7,7 @@ import { formatBytes, formatLastUpdated } from '@/lib/streaming-proxies/utils/fo
 import { cn } from '@/lib/utils';
 import { RefreshCw, AlertTriangle, BarChart2 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui';
+import { BandwidthChartSkeleton } from '@/components/ui/loading-skeletons';
 
 interface BandwidthDataPoint {
   timestamp: number;
@@ -21,7 +22,8 @@ interface BandwidthChartProps {
 }
 
 // Helper function to generate mock data for demonstration
-function generateMockBandwidthData(timeRange: string): BandwidthDataPoint[] {
+// Uses seeded random generation to prevent hydration mismatches
+function generateMockBandwidthData(timeRange: string, seed?: string): BandwidthDataPoint[] {
   const now = Date.now();
   let points = 24; // Default to 24 points (1 per hour)
   let interval = 3600000; // 1 hour in ms
@@ -34,9 +36,21 @@ function generateMockBandwidthData(timeRange: string): BandwidthDataPoint[] {
     interval = 6 * 3600000; // 6 hours in ms
   }
 
+  // Simple seeded random function to ensure consistent data
+  const seededRandom = (seed: string, index: number) => {
+    const hash = seed.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const x = Math.sin(hash + index) * 10000;
+    return x - Math.floor(x);
+  };
+
+  const seedValue = seed || 'default-seed';
+
   return Array.from({ length: points }, (_, i) => ({
     timestamp: now - (interval * (points - i - 1)),
-    bytesTransferred: Math.floor(Math.random() * 1000000000), // Up to 1GB
+    bytesTransferred: Math.floor(seededRandom(seedValue, i) * 1000000000), // Up to 1GB
   }));
 }
 
@@ -74,7 +88,7 @@ function BandwidthChartContent({
       // In development, fall back to mock data
       if (process.env.NODE_ENV === 'development') {
         console.warn('Using mock bandwidth data as fallback');
-        const mockData = generateMockBandwidthData(timeRange);
+        const mockData = generateMockBandwidthData(timeRange, proxy.id);
         setData(mockData);
         setLastUpdated(new Date());
         setError(null); // Clear error since we're using mock data
@@ -111,29 +125,7 @@ function BandwidthChartContent({
 
   // Render loading state
   if (isLoading && data.length === 0) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Bandwidth Usage</CardTitle>
-              <CardDescription>Loading data...</CardDescription>
-            </div>
-            <Button variant="ghost" size="icon" disabled>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-md">
-            <div className="text-center space-y-2">
-              <BarChart2 className="h-8 w-8 mx-auto text-gray-400" />
-              <p className="text-sm text-gray-500">Loading bandwidth data...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <BandwidthChartSkeleton className={className} />;
   }
 
   // Render error state

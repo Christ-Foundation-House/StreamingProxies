@@ -9,9 +9,10 @@ import Link from 'next/link';
 export default async function ProxyMonitoringPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const proxy = await getProxyById(params.id);
+  const { id } = await params;
+  const proxy = await getProxyById(id);
 
   if (!proxy) {
     notFound();
@@ -79,9 +80,10 @@ export default async function ProxyMonitoringPage({
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const proxy = await getProxyById(params.id);
+  const { id } = await params;
+  const proxy = await getProxyById(id);
   
   return {
     title: `${proxy?.name || 'Proxy'} Monitoring`,

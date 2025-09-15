@@ -1,4 +1,5 @@
 import { StreamingProxy, ProxyStatus, HealthStatus } from './types';
+import { apiClient, ApiClientError } from './api-client';
 
 // Extend the StreamingProxy interface to include bandwidthUsed
 interface ExtendedStreamingProxy extends Omit<StreamingProxy, 'healthStatus'> {
@@ -6,7 +7,7 @@ interface ExtendedStreamingProxy extends Omit<StreamingProxy, 'healthStatus'> {
   healthStatus: HealthStatus;
 }
 
-// Mock data for development
+// Mock data for development fallback
 const MOCK_PROXIES: ExtendedStreamingProxy[] = [
   {
     id: '1',
@@ -32,48 +33,34 @@ const MOCK_PROXIES: ExtendedStreamingProxy[] = [
 // Get proxy by ID
 export async function getProxyById(id: string): Promise<StreamingProxy | undefined> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const response = await fetch(`${apiUrl}/api/streaming-proxies/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      // Add authentication token if needed
-      // headers: {
-      //   'Authorization': `Bearer ${token}`,
-      // },
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return undefined; // Proxy not found
-      }
-      throw new Error(`Failed to fetch proxy: ${response.statusText}`);
-    }
-
-    const result = await response.json();
+    const response = await apiClient.getProxy(id);
     
-    if (!result.success) {
-      console.error('API error:', result.error);
-      return undefined;
+    if (response.success && response.data) {
+      // Transform the API response to match the StreamingProxy type
+      const proxyData = response.data;
+      return {
+        ...proxyData,
+        createdAt: new Date(proxyData.createdAt),
+        updatedAt: new Date(proxyData.updatedAt),
+        lastHealthCheck: proxyData.lastHealthCheck ? new Date(proxyData.lastHealthCheck) : undefined,
+      };
     }
-
-    // Transform the API response to match the StreamingProxy type
-    const proxyData = result.data;
-    return {
-      ...proxyData,
-      createdAt: new Date(proxyData.createdAt),
-      updatedAt: new Date(proxyData.updatedAt),
-      lastHealthCheck: proxyData.lastHealthCheck ? new Date(proxyData.lastHealthCheck) : undefined,
-      lastActiveAt: proxyData.lastActiveAt ? new Date(proxyData.lastActiveAt) : undefined,
-    };
+    
+    return undefined;
   } catch (error) {
     console.error('Error fetching proxy:', error);
+    
+    // Handle specific API errors
+    if (error instanceof ApiClientError && error.statusCode === 404) {
+      return undefined; // Proxy not found
+    }
+    
     // Fallback to mock data in development
     if (process.env.NODE_ENV === 'development') {
       console.warn('Using mock data as fallback');
       return MOCK_PROXIES.find(proxy => proxy.id === id);
     }
+    
     throw error; // Re-throw to be handled by the calling component
   }
 }
@@ -84,42 +71,19 @@ export async function getProxyBandwidthData(
   timeRange: '1h' | '24h' | '7d' | '30d'
 ): Promise<Array<{ timestamp: number; bytesTransferred: number }>> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const response = await fetch(
-      `${apiUrl}/api/streaming-proxies/${proxyId}/bandwidth?range=${timeRange}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Add authentication token if needed
-        // headers: {
-        //   'Authorization': `Bearer ${token}`,
-        // },
-        // Note: Removed 'next' option as it's not part of the standard fetch API
-      }
+    // Use the API client to fetch bandwidth data
+    const response = await apiClient.get<{ success: boolean; data: Array<{ timestamp: string; bytesTransferred: number }> }>(
+      `/streaming-proxies/${proxyId}/bandwidth?range=${timeRange}`
     );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch bandwidth data: ${response.statusText}`);
-    }
-
-    const result = await response.json();
     
-    if (!result.success) {
-      console.error('API error:', result.error);
-      throw new Error(result.error || 'Failed to fetch bandwidth data');
-    }
-
-    // Ensure the response data matches the expected format
-    if (!Array.isArray(result.data)) {
+    if (response.success && Array.isArray(response.data)) {
+      return response.data.map((item: any) => ({
+        timestamp: new Date(item.timestamp).getTime(),
+        bytesTransferred: Number(item.bytesTransferred),
+      }));
+    } else {
       throw new Error('Invalid data format received from API');
     }
-
-    return result.data.map((item: any) => ({
-      timestamp: new Date(item.timestamp).getTime(),
-      bytesTransferred: Number(item.bytesTransferred),
-    }));
   } catch (error) {
     console.error('Error fetching bandwidth data:', error);
     
@@ -155,48 +119,28 @@ export async function getProxyBandwidthData(
 // Get all proxies
 export async function getAllProxies(): Promise<StreamingProxy[]> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const response = await fetch(`${apiUrl}/api/streaming-proxies`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      // Add authentication token if needed
-      // headers: {
-      //   'Authorization': `Bearer ${token}`,
-      // },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch proxies: ${response.statusText}`);
-    }
-
-    const result = await response.json();
+    const response = await apiClient.getProxies();
     
-    if (!result.success) {
-      console.error('API error:', result.error);
-      throw new Error(result.error || 'Failed to fetch proxies');
-    }
-
-    // Transform the API response to match the StreamingProxy type
-    if (!Array.isArray(result.data)) {
+    if (response.success && Array.isArray(response.data)) {
+      // Transform the API response to match the StreamingProxy type
+      return response.data.map((proxyData: any) => ({
+        ...proxyData,
+        createdAt: new Date(proxyData.createdAt),
+        updatedAt: new Date(proxyData.updatedAt),
+        lastHealthCheck: proxyData.lastHealthCheck ? new Date(proxyData.lastHealthCheck) : undefined,
+      }));
+    } else {
       throw new Error('Invalid data format received from API');
     }
-
-    return result.data.map((proxyData: any) => ({
-      ...proxyData,
-      createdAt: new Date(proxyData.createdAt),
-      updatedAt: new Date(proxyData.updatedAt),
-      lastHealthCheck: proxyData.lastHealthCheck ? new Date(proxyData.lastHealthCheck) : undefined,
-      lastActiveAt: proxyData.lastActiveAt ? new Date(proxyData.lastActiveAt) : undefined,
-    }));
   } catch (error) {
     console.error('Error fetching proxies:', error);
+    
     // Fallback to mock data in development
     if (process.env.NODE_ENV === 'development') {
       console.warn('Using mock data as fallback');
       return MOCK_PROXIES;
     }
+    
     throw error; // Re-throw to be handled by the calling component
   }
 }
@@ -207,41 +151,23 @@ export async function updateProxy(
   updates: Partial<StreamingProxy>
 ): Promise<StreamingProxy> {
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    const response = await fetch(`${apiUrl}/api/streaming-proxies/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      // Add authentication token if needed
-      // headers: {
-      //   'Authorization': `Bearer ${token}`,
-      // },
-      body: JSON.stringify(updates),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to update proxy: ${response.statusText}`);
-    }
-
-    const result = await response.json();
+    const response = await apiClient.updateProxy(id, updates);
     
-    if (!result.success) {
-      console.error('API error:', result.error);
-      throw new Error(result.error || 'Failed to update proxy');
+    if (response.success && response.data) {
+      // Transform the API response to match the StreamingProxy type
+      const proxyData = response.data;
+      return {
+        ...proxyData,
+        createdAt: new Date(proxyData.createdAt),
+        updatedAt: new Date(proxyData.updatedAt),
+        lastHealthCheck: proxyData.lastHealthCheck ? new Date(proxyData.lastHealthCheck) : undefined,
+      };
+    } else {
+      throw new Error('Failed to update proxy');
     }
-
-    // Transform the API response to match the StreamingProxy type
-    const proxyData = result.data;
-    return {
-      ...proxyData,
-      createdAt: new Date(proxyData.createdAt),
-      updatedAt: new Date(proxyData.updatedAt),
-      lastHealthCheck: proxyData.lastHealthCheck ? new Date(proxyData.lastHealthCheck) : undefined,
-      lastActiveAt: proxyData.lastActiveAt ? new Date(proxyData.lastActiveAt) : undefined,
-    };
   } catch (error) {
     console.error('Error updating proxy:', error);
+    
     // Fallback to mock data in development
     if (process.env.NODE_ENV === 'development') {
       console.warn('Using mock data as fallback');
@@ -259,6 +185,7 @@ export async function updateProxy(
       
       return updatedProxy;
     }
+    
     throw error; // Re-throw to be handled by the calling component
   }
 }

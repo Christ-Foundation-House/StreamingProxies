@@ -161,18 +161,19 @@ interface RouteParams {
 }
 
 // Create the API handler with authentication and rate limiting
-const handler = async (req: NextRequest, { params }: { params: { id: string } }) => {
+const handler = async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
     const user = { id: 'system' }; // Replace with actual user from auth
-    const typedParams = params as RouteParams;
     
     switch (req.method) {
       case 'GET':
-        return await getProxy(req, { params: typedParams, user });
+        return await getProxy(req, { params: resolvedParams, user });
       case 'PUT':
-        return await updateProxy(req, { params: typedParams, user });
+        return await updateProxy(req, { params: resolvedParams, user });
       case 'DELETE':
-        return await deleteProxy(req, { params: typedParams, user });
+        return await deleteProxy(req, { params: resolvedParams, user });
       default:
         return new NextResponse(
           JSON.stringify({ 
@@ -185,7 +186,7 @@ const handler = async (req: NextRequest, { params }: { params: { id: string } })
   } catch (error) {
     const errorWithMessage = handleApiError(error, {
       context: { 
-        endpoint: `/api/streaming-proxies/${params?.id} [${req.method}]`,
+        endpoint: `/api/streaming-proxies/[id] [${req.method}]`,
         method: req.method
       }
     });

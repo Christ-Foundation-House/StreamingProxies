@@ -4,7 +4,7 @@ import { SystemStats } from '@/lib/streaming-proxies/types';
 import { formatNumber, formatBandwidth } from '@/lib/streaming-proxies/utils/formatters';
 import { COMPONENT_STYLES, LAYOUT_STYLES } from '@/lib/streaming-proxies/utils/constants';
 import { cn } from '@/lib/utils';
-import { ChartLoadingSkeleton } from '../../_components/LoadingStates';
+import { SystemStatsSkeleton } from '@/components/ui/loading-skeletons';
 
 interface SystemOverviewProps {
   stats: SystemStats | null;
@@ -14,7 +14,47 @@ interface SystemOverviewProps {
 
 export default function SystemOverview({ stats, loading = false, className }: SystemOverviewProps) {
   if (loading || !stats) {
-    return <ChartLoadingSkeleton className={className} />;
+    return (
+      <div className={cn('space-y-6', className)}>
+        <SystemStatsSkeleton />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-6 bg-gray-200 rounded w-48" />
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-gray-200 rounded-full mr-3" />
+                    <div className="h-4 bg-gray-200 rounded w-16" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 bg-gray-200 rounded w-8" />
+                    <div className="w-24 bg-gray-200 rounded-full h-2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-gray-200 rounded w-24" />
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, j) => (
+                    <div key={j} className="flex justify-between">
+                      <div className="h-3 bg-gray-200 rounded w-16" />
+                      <div className="h-3 bg-gray-200 rounded w-12" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   const healthPercentage = stats.totalProxies > 0 

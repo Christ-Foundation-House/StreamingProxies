@@ -113,10 +113,11 @@ const getBandwidthData = async (
 };
 
 // Create the API handler with authentication and rate limiting
-const handler = async (req: NextRequest, { params }: { params: { id: string } }) => {
+const handler = async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
+    const resolvedParams = await params;
     const user = { id: 'system' }; // Replace with actual user from auth
-    const typedParams = params as BandwidthRouteParams;
+    const typedParams = resolvedParams as BandwidthRouteParams;
     
     if (req.method === 'GET') {
       return await getBandwidthData(req, { params: typedParams, user });
@@ -132,7 +133,7 @@ const handler = async (req: NextRequest, { params }: { params: { id: string } })
   } catch (error) {
     const errorWithMessage = handleApiError(error, {
       context: { 
-        endpoint: `/api/streaming-proxies/${params?.id}/bandwidth [${req.method}]`,
+        endpoint: `/api/streaming-proxies/[id]/bandwidth [${req.method}]`,
         method: req.method
       }
     });

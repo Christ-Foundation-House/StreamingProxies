@@ -7,7 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "build:production": "NODE_ENV=production next build",
+    "start:production": "NODE_ENV=production next start",
+    "analyze": "ANALYZE=true next build",
+    "clean": "rm -rf .next out",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -35,11 +43,19 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^14.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/lru-cache": "^7.10.9",
     "@types/next-auth": "^3.13.0",
     "@types/node": "^24.3.1",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
-    "next-auth": "^4.24.11"
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/ui": "^1.6.1",
+    "jsdom": "^23.2.0",
+    "next-auth": "^4.24.11",
+    "vitest": "^1.6.1"
   }
 }

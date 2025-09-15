@@ -12,12 +12,13 @@ import { cn } from '@/lib/utils';
 import { LoadingSpinner } from '../../_components/LoadingStates';
 import { getErrorMessage } from '@/lib/streaming-proxies/utils/error-handler';
 
-type FormData = z.infer<typeof CreateProxySchema>;
+type CreateFormData = z.infer<typeof CreateProxySchema>;
 type UpdateFormData = z.infer<typeof UpdateProxySchema>;
+type FormData = CreateFormData;
 
 export interface ProxyFormProps {
   initialData?: Partial<StreamingProxy>;
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: CreateFormData) => Promise<void>;
   mode: 'create' | 'edit';
   loading?: boolean;
   className?: string;
@@ -36,8 +37,6 @@ export default function ProxyForm({
     message: string;
   } | null>(null);
 
-  const schema = mode === 'create' ? CreateProxySchema : UpdateProxySchema;
-  
   const {
     register,
     handleSubmit,
@@ -46,7 +45,7 @@ export default function ProxyForm({
     formState: { errors, isSubmitting },
     reset
   } = useForm<FormData>({
-    resolver: zodResolver(schema as z.ZodType<FormData>),
+    resolver: zodResolver(CreateProxySchema),
     defaultValues: {
       name: initialData?.name ?? '',
       description: initialData?.description ?? '',
@@ -117,7 +116,10 @@ export default function ProxyForm({
   };
 
   const generateStreamKey = () => {
-    const key = `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Use a more predictable approach for key generation to avoid hydration issues
+    const timestamp = Date.now();
+    const randomPart = Math.random().toString(36).substr(2, 9);
+    const key = `stream_${timestamp}_${randomPart}`;
     setValue('rtmpKey', key);
   };
 

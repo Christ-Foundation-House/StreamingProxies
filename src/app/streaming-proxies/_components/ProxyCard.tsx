@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback, useMemo } from 'react';
 import { ErrorBoundary, ErrorMessages } from '@/components/ui/error-boundary';
 import Link from 'next/link';
 import { BarChart2, ExternalLink } from 'lucide-react';
+import { ClientOnly } from '@/components/ClientOnly';
 // Define types directly to avoid import issues
 enum ProxyStatus {
   ACTIVE = 'active',
@@ -164,7 +165,7 @@ interface ProxyCardProps {
   className?: string;
 }
 
-const ProxyCardContent = ({
+const ProxyCardContent = memo(({
   proxy,
   showActions = true,
   onStartStream,
@@ -176,17 +177,40 @@ const ProxyCardContent = ({
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
-  const canStartStream = proxy.status === 'active' && 
-    (proxy.currentActiveStreams || 0) < (proxy.maxConcurrentStreams || 0);
-    
-  const getUtilizationColor = (percentage: number) => {
+  // Memoize computed values to prevent unnecessary recalculations
+  const computedValues = useMemo(() => {
+    const maxStreams = typeof proxy.maxConcurrentStreams === 'string' 
+      ? parseInt(proxy.maxConcurrentStreams, 10) 
+      : proxy.maxConcurrentStreams || 0;
+      
+    const activeStreams = typeof proxy.currentActiveStreams === 'string'
+      ? parseInt(proxy.currentActiveStreams, 10)
+      : proxy.currentActiveStreams || 0;
+      
+    const utilizationPercentage = maxStreams > 0 
+      ? (activeStreams / maxStreams) * 100 
+      : 0;
+
+    const canStartStream = proxy.status === 'active' && activeStreams < maxStreams;
+
+    return {
+      maxStreams,
+      activeStreams,
+      utilizationPercentage,
+      canStartStream
+    };
+  }, [proxy.maxConcurrentStreams, proxy.currentActiveStreams, proxy.status]);
+
+  // Memoize utility functions
+  const getUtilizationColor = useCallback((percentage: number) => {
     if (percentage >= 90) return 'bg-red-500';
     if (percentage >= 70) return 'bg-yellow-500';
     return 'bg-green-500';
-  };
+  }, []);
 
-  const handleStartStream = async () => {
-    if (!onStartStream || !canStartStream) return;
+  // Memoize event handlers to prevent child re-renders
+  const handleStartStream = useCallback(async () => {
+    if (!onStartStream || !computedValues.canStartStream) return;
     
     setActionLoading('start');
     try {
@@ -194,28 +218,27 @@ const ProxyCardContent = ({
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [onStartStream, computedValues.canStartStream, proxy.id]);
 
-  const handleViewDetails = () => {
+  const handleViewDetails = useCallback(() => {
     if (onViewDetails) {
       onViewDetails(proxy.id);
     }
-  };
+  }, [onViewDetails, proxy.id]);
   
   // Safely format the last active time
-  const formatLastActive = (date?: Date | string | null) => {
+  const formatLastActive = useCallback((date?: Date | string | null) => {
     if (!date) return 'Never';
     return formatRelativeTime(date);
-  };
-  
+  }, []);
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     if (onEdit) {
       onEdit(proxy);
     }
-  };
+  }, [onEdit, proxy]);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!onDelete) return;
     
     const confirmDelete = window.confirm(`Are you sure you want to delete ${proxy.name}?`);
@@ -227,19 +250,7 @@ const ProxyCardContent = ({
     } finally {
       setActionLoading(null);
     }
-  };
-
-  const maxStreams = typeof proxy.maxConcurrentStreams === 'string' 
-    ? parseInt(proxy.maxConcurrentStreams, 10) 
-    : proxy.maxConcurrentStreams || 0;
-    
-  const activeStreams = typeof proxy.currentActiveStreams === 'string'
-    ? parseInt(proxy.currentActiveStreams, 10)
-    : proxy.currentActiveStreams || 0;
-    
-  const utilizationPercentage = maxStreams > 0 
-    ? (activeStreams / maxStreams) * 100 
-    : 0;
+  }, [onDelete, proxy.id, proxy.name]);
   
   const getStatusStyles = (status: string) => {
     return STATUS_STYLES[status as keyof typeof STATUS_STYLES] || 'bg-gray-100 text-gray-800';
@@ -280,7 +291,7 @@ const ProxyCardContent = ({
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">Streams:</span>
           <span className="font-medium text-gray-900">
-            {formatStreamCount(proxy.currentActiveStreams, proxy.maxConcurrentStreams)}
+            {formatStreamCount(computedValues.activeStreams, computedValues.maxStreams)}
           </span>
         </div>
         {proxy.bandwidthLimit && (
@@ -301,12 +312,12 @@ const ProxyCardContent = ({
       <div className="mb-4">
         <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
           <span>Utilization</span>
-          <span>{Math.round(utilizationPercentage)}%</span>
+          <span>{Math.round(computedValues.utilizationPercentage)}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
-            className={cn('h-2 rounded-full transition-all duration-300', getUtilizationColor(utilizationPercentage))}
-            style={{ width: `${Math.min(100, utilizationPercentage)}%` }}
+            className={cn('h-2 rounded-full transition-all duration-300', getUtilizationColor(computedValues.utilizationPercentage))}
+            style={{ width: `${Math.min(100, computedValues.utilizationPercentage)}%` }}
           />
         </div>
       </div>
@@ -315,7 +326,9 @@ const ProxyCardContent = ({
       <div className="space-y-2">
         {proxy.lastHealthCheck && (
           <div className={cn("text-sm text-gray-500")}>
-            Last active: {formatLastActive(proxy.lastActiveAt)}
+            Last active: <ClientOnly fallback="--">
+              {formatLastActive(proxy.lastActiveAt)}
+            </ClientOnly>
           </div>
         )}
         
@@ -352,9 +365,9 @@ const ProxyCardContent = ({
           {onStartStream && (
             <button
               onClick={handleStartStream}
-              disabled={!canStartStream}
+              disabled={!computedValues.canStartStream}
               className={`${COMPONENT_STYLES.BUTTON_PRIMARY} ${
-                !canStartStream ? 'opacity-50 cursor-not-allowed' : ''
+                !computedValues.canStartStream ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {actionLoading === 'start' ? (
@@ -392,9 +405,9 @@ const ProxyCardContent = ({
               {onDelete && (
                 <button
                   onClick={handleDelete}
-                  disabled={proxy.currentActiveStreams > 0 || actionLoading === 'delete'}
+                  disabled={computedValues.activeStreams > 0 || actionLoading === 'delete'}
                   className="p-2 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={proxy.currentActiveStreams > 0 ? "Cannot delete proxy with active streams" : "Delete proxy"}
+                  title={computedValues.activeStreams > 0 ? "Cannot delete proxy with active streams" : "Delete proxy"}
                 >
                   {actionLoading === 'delete' ? (
                     <LoadingSpinner size="sm" />
@@ -411,7 +424,7 @@ const ProxyCardContent = ({
       )}
 
       {/* Status Messages */}
-      {!canStartStream && proxy.status === 'active' && (
+      {!computedValues.canStartStream && proxy.status === 'active' && (
         <div className="mt-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
           Maximum streams reached
         </div>
@@ -430,10 +443,13 @@ const ProxyCardContent = ({
       )}
     </div>
   );
-}
+});
+
+// Add display name for debugging
+ProxyCardContent.displayName = 'ProxyCardContent';
 
 // Compact version of the proxy card
-export function CompactProxyCard({
+export const CompactProxyCard = memo(({
   proxy,
   onSelect,
   selected = false,
@@ -443,7 +459,12 @@ export function CompactProxyCard({
   onSelect?: (proxy: StreamingProxy) => void;
   selected?: boolean;
   className?: string;
-}) {
+}) => {
+  // Memoize the click handler to prevent unnecessary re-renders
+  const handleClick = useCallback(() => {
+    onSelect?.(proxy);
+  }, [onSelect, proxy]);
+
   return (
     <div
       className={cn(
@@ -453,7 +474,7 @@ export function CompactProxyCard({
           : 'border-gray-200 hover:border-gray-300 bg-white',
         className
       )}
-      onClick={() => onSelect?.(proxy)}
+      onClick={handleClick}
     >
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
@@ -470,4 +491,6 @@ export function CompactProxyCard({
       </div>
     </div>
   );
-}
+});
+
+CompactProxyCard.displayName = 'CompactProxyCard';

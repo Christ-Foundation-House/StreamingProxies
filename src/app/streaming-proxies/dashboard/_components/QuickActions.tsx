@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { COMPONENT_STYLES } from '@/lib/streaming-proxies/utils/constants';
 import { cn } from '@/lib/utils';
-import { LoadingSpinner } from '../../_components/LoadingStates';
+import { InlineLoadingSpinner } from '@/components/ui/loading-skeletons';
 
 interface QuickActionsProps {
   onStartStream: () => void;
@@ -144,7 +144,7 @@ export default function QuickActions({
             title={action.description}
           >
             {actionLoading === action.name ? (
-              <LoadingSpinner size="sm" />
+              <InlineLoadingSpinner size="sm" />
             ) : (
               <>
                 {action.icon}
@@ -207,7 +207,7 @@ export function CompactQuickActions({
         )}
       >
         {actionLoading === 'start-stream' ? (
-          <LoadingSpinner size="sm" />
+          <InlineLoadingSpinner size="sm" />
         ) : (
           <>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -229,7 +229,7 @@ export function CompactQuickActions({
         title="Refresh data"
       >
         {actionLoading === 'refresh' ? (
-          <LoadingSpinner size="sm" />
+          <InlineLoadingSpinner size="sm" />
         ) : (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2M15 15v5h-.582M8.644 21A8.001 8.001 0 0019.418 15m0 0V15a8 8 0 10-15.356-2" />
@@ -280,7 +280,7 @@ export function ActionButton({
         className
       )}
     >
-      {loading ? <LoadingSpinner size="sm" /> : icon}
+      {loading ? <InlineLoadingSpinner size="sm" /> : icon}
       <span>{label}</span>
     </button>
   );

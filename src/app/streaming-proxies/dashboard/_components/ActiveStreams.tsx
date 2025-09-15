@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo, useMemo, useCallback } from 'react';
 import { StreamingSession, SessionStatus } from '@/lib/streaming-proxies/types';
 import { formatStreamDuration, formatViewerCount, formatBytes } from '@/lib/streaming-proxies/utils/formatters';
 import { COMPONENT_STYLES, SESSION_STATUS_STYLES } from '@/lib/streaming-proxies/utils/constants';
 import { cn } from '@/lib/utils';
-import { LoadingSpinner, ListLoadingSkeleton } from '../../_components/LoadingStates';
+import { SessionListSkeleton, InlineLoadingSpinner } from '@/components/ui/loading-skeletons';
+import { ClientOnly } from '@/components/ClientOnly';
+import { StreamDuration } from '@/components/ui/TimeDisplay';
 
 interface ActiveStreamsProps {
   sessions: StreamingSession[];
@@ -14,17 +16,36 @@ interface ActiveStreamsProps {
   className?: string;
 }
 
-export default function ActiveStreams({ 
+const ActiveStreams = memo(({ 
   sessions, 
   loading = false, 
   onEndStream,
   className 
-}: ActiveStreamsProps) {
+}: ActiveStreamsProps) => {
   const [endingStreams, setEndingStreams] = useState<Set<string>>(new Set());
 
-  const activeSessions = sessions.filter(session => session.status === SessionStatus.ACTIVE);
+  // Memoize filtered sessions and computed values
+  const sessionData = useMemo(() => {
+    const activeSessions = sessions.filter(session => session.status === SessionStatus.ACTIVE);
+    
+    const totalViewers = activeSessions.reduce((sum, session) => sum + session.peakViewers, 0);
+    const totalData = activeSessions.reduce((sum, session) => sum + session.totalDataTransferred, 0);
+    const avgDuration = activeSessions.length > 0 
+      ? Math.round(activeSessions.reduce((sum, session) => {
+          const duration = (Date.now() - session.startedAt.getTime()) / (1000 * 60);
+          return sum + duration;
+        }, 0) / activeSessions.length)
+      : 0;
 
-  const handleEndStream = async (sessionId: string) => {
+    return {
+      activeSessions,
+      totalViewers,
+      totalData,
+      avgDuration
+    };
+  }, [sessions]);
+
+  const handleEndStream = useCallback(async (sessionId: string) => {
     if (!onEndStream) return;
 
     setEndingStreams(prev => new Set(prev).add(sessionId));
@@ -37,13 +58,21 @@ export default function ActiveStreams({
         return newSet;
       });
     }
-  };
+  }, [onEndStream]);
 
   if (loading) {
-    return <ListLoadingSkeleton count={3} className={className} />;
+    return (
+      <div className={cn(COMPONENT_STYLES.CARD_BASE, className)}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-6 bg-gray-200 rounded w-32 animate-pulse" />
+          <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+        </div>
+        <SessionListSkeleton count={3} />
+      </div>
+    );
   }
 
-  if (activeSessions.length === 0) {
+  if (sessionData.activeSessions.length === 0) {
     return (
       <div className={cn(COMPONENT_STYLES.CARD_BASE, className)}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Active Streams</h3>
@@ -65,12 +94,12 @@ export default function ActiveStreams({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Active Streams</h3>
         <span className="text-sm text-gray-500">
-          {activeSessions.length} active
+          {sessionData.activeSessions.length} active
         </span>
       </div>
 
       <div className="space-y-3">
-        {activeSessions.map((session) => (
+        {sessionData.activeSessions.map((session) => (
           <div
             key={session.id}
             className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
@@ -93,7 +122,9 @@ export default function ActiveStreams({
                   <div>
                     <span className="text-gray-500">Duration:</span>
                     <div className="font-medium text-gray-900">
-                      {formatStreamDuration(session.startedAt)}
+                      <ClientOnly fallback="--">
+                        <StreamDuration startTime={session.startedAt} />
+                      </ClientOnly>
                     </div>
                   </div>
                   
@@ -132,7 +163,7 @@ export default function ActiveStreams({
                     )}
                   >
                     {endingStreams.has(session.id) ? (
-                      <LoadingSpinner size="sm" />
+                      <InlineLoadingSpinner size="sm" />
                     ) : (
                       'End Stream'
                     )}
@@ -157,27 +188,26 @@ export default function ActiveStreams({
       </div>
 
       {/* Summary */}
-      {activeSessions.length > 0 && (
+      {sessionData.activeSessions.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="grid grid-cols-3 gap-4 text-center text-sm">
             <div>
               <div className="font-medium text-gray-900">
-                {activeSessions.reduce((sum, session) => sum + session.peakViewers, 0)}
+                {sessionData.totalViewers}
               </div>
               <div className="text-gray-500">Total Viewers</div>
             </div>
             <div>
               <div className="font-medium text-gray-900">
-                {formatBytes(activeSessions.reduce((sum, session) => sum + session.totalDataTransferred, 0))}
+                {formatBytes(sessionData.totalData)}
               </div>
               <div className="text-gray-500">Total Data</div>
             </div>
             <div>
               <div className="font-medium text-gray-900">
-                {Math.round(activeSessions.reduce((sum, session) => {
-                  const duration = (Date.now() - session.startedAt.getTime()) / (1000 * 60);
-                  return sum + duration;
-                }, 0) / activeSessions.length)}m
+                <ClientOnly fallback="--m">
+                  {sessionData.avgDuration}m
+                </ClientOnly>
               </div>
               <div className="text-gray-500">Avg Duration</div>
             </div>
@@ -186,10 +216,14 @@ export default function ActiveStreams({
       )}
     </div>
   );
-}
+});
+
+ActiveStreams.displayName = 'ActiveStreams';
+
+export default ActiveStreams;
 
 // Compact version for smaller spaces
-export function CompactActiveStreams({ 
+export const CompactActiveStreams = memo(({ 
   sessions, 
   loading = false,
   className 
@@ -197,8 +231,11 @@ export function CompactActiveStreams({
   sessions: StreamingSession[];
   loading?: boolean;
   className?: string;
-}) {
-  const activeSessions = sessions.filter(session => session.status === SessionStatus.ACTIVE);
+}) => {
+  const activeSessions = useMemo(() => 
+    sessions.filter(session => session.status === SessionStatus.ACTIVE),
+    [sessions]
+  );
 
   if (loading) {
     return (
@@ -231,7 +268,9 @@ export function CompactActiveStreams({
             </span>
           </div>
           <div className="text-xs text-gray-500">
-            {formatStreamDuration(session.startedAt)}
+            <ClientOnly fallback="--">
+              <StreamDuration startTime={session.startedAt} />
+            </ClientOnly>
           </div>
         </div>
       ))}
@@ -245,7 +284,9 @@ export function CompactActiveStreams({
       )}
     </div>
   );
-}
+});
+
+CompactActiveStreams.displayName = 'CompactActiveStreams';
 
 // Stream status indicator
 export function StreamStatusIndicator({ 
@@ -267,7 +308,9 @@ export function StreamStatusIndicator({
       {showDetails && (
         <div className="text-xs text-gray-500">
           {isActive ? (
-            <span>Live • {formatStreamDuration(session.startedAt)}</span>
+            <ClientOnly fallback="Live • --">
+              <span>Live • <StreamDuration startTime={session.startedAt} /></span>
+            </ClientOnly>
           ) : (
             <span>Ended • {session.durationMinutes}m</span>
           )}

@@ -1,4 +1,7 @@
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getProxyById } from '@/lib/streaming-proxies/data';
 import dynamic from 'next/dynamic';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,33 +35,39 @@ const BandwidthChart = dynamic<BandwidthChartProps>(
   }
 ) as React.ComponentType<BandwidthChartProps>;
 
-export default async function ProxyMonitoringPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  let proxy;
-  
-  try {
-    proxy = await getProxyById(params.id);
-    
-    if (!proxy) {
-      notFound();
-    }
-  } catch (error) {
-    console.error('Error fetching proxy data:', error);
+export default function SystemMonitoringPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    // This is a system-wide monitoring page, not for a specific proxy
+    // You could load system-wide stats here
+    setLoading(false);
+  }, []);
+
+  if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6">
-        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-        <h1 className="text-2xl font-bold text-red-600 mb-2">Failed to load proxy data</h1>
-        <p className="text-gray-600 mb-6">
-          We couldn't load the monitoring data for this proxy. Please try again later.
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+          {error}
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
+          Failed to load system monitoring data.
         </p>
-        <Button asChild>
-          <Link href="/streaming-proxies">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Proxies
-          </Link>
+        <Button onClick={() => router.back()}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Go Back
         </Button>
       </div>
     );
@@ -68,53 +77,46 @@ export default async function ProxyMonitoringPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Proxy Monitoring</h1>
+          <h1 className="text-2xl font-bold">System Monitoring</h1>
           <p className="text-muted-foreground">
-            Detailed analytics for {proxy.name || `Proxy ${proxy.id}`}
+            System-wide monitoring and analytics
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href={`/streaming-proxies/${proxy.id}`}>
+          <Link href="/streaming-proxies/dashboard">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Proxy
+            Back to Dashboard
           </Link>
         </Button>
       </div>
 
-      <Tabs defaultValue="bandwidth" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="bandwidth">Bandwidth</TabsTrigger>
-          <TabsTrigger value="requests" disabled>
-            Requests
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="performance" disabled>
+            Performance
           </TabsTrigger>
           <TabsTrigger value="errors" disabled>
             Errors
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="bandwidth" className="space-y-4">
-          <BandwidthChart 
-            proxy={proxy} 
-            timeRange="24h"
-            className="mb-8"
-          />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-lg font-medium mb-4">Last Hour</h3>
-              <BandwidthChart 
-                proxy={proxy} 
-                timeRange="1h"
-                className="h-64"
-              />
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="p-6 bg-white rounded-lg border">
+              <h3 className="text-lg font-medium mb-2">Total Proxies</h3>
+              <p className="text-3xl font-bold text-blue-600">--</p>
+              <p className="text-sm text-gray-500">System monitoring coming soon</p>
             </div>
-            <div>
-              <h3 className="text-lg font-medium mb-4">Last 7 Days</h3>
-              <BandwidthChart 
-                proxy={proxy} 
-                timeRange="7d"
-                className="h-64"
-              />
+            <div className="p-6 bg-white rounded-lg border">
+              <h3 className="text-lg font-medium mb-2">Active Streams</h3>
+              <p className="text-3xl font-bold text-green-600">--</p>
+              <p className="text-sm text-gray-500">Real-time monitoring</p>
+            </div>
+            <div className="p-6 bg-white rounded-lg border">
+              <h3 className="text-lg font-medium mb-2">System Health</h3>
+              <p className="text-3xl font-bold text-yellow-600">--</p>
+              <p className="text-sm text-gray-500">Health checks</p>
             </div>
           </div>
         </TabsContent>
@@ -123,14 +125,5 @@ export default async function ProxyMonitoringPage({
   );
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const proxy = await getProxyById(params.id);
-  
-  return {
-    title: `${proxy?.name || 'Proxy'} Monitoring`,
-  };
-}
+// Note: generateMetadata is not available in client components
+// The title will be set dynamically via document.title or next/head if needed

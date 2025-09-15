@@ -1,9 +1,21 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { 
+  ProxyCardSkeleton, 
+  ProxyGridSkeleton, 
+  SessionListSkeleton, 
+  TableSkeleton, 
+  ChartSkeleton,
+  SystemStatsSkeleton,
+  InlineLoadingSpinner,
+  ButtonLoadingSpinner,
+  LoadingDots,
+  ConditionalLoading
+} from '@/components/ui/loading-skeletons';
 
 interface LoadingStateProps {
-  type: 'card' | 'table' | 'chart' | 'list';
+  type: 'card' | 'table' | 'chart' | 'list' | 'grid' | 'stats';
   count?: number;
   className?: string;
 }
@@ -92,62 +104,60 @@ export default function LoadingStates({ type, count = 3, className }: LoadingSta
 
   switch (type) {
     case 'card':
+      return <ProxyCardSkeleton className={className} />;
+    case 'grid':
+      return <ProxyGridSkeleton className={className} count={count} />;
+    case 'table':
+      return <TableSkeleton className={className} rows={count} />;
+    case 'chart':
+      return <ChartSkeleton className={className} />;
+    case 'list':
+      return <SessionListSkeleton className={className} count={count} />;
+    case 'stats':
+      return <SystemStatsSkeleton className={className} />;
+    default:
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {Array.from({ length: count }).map((_, index) => (
-            <div key={index}>{renderCardSkeleton()}</div>
+            <ProxyCardSkeleton key={index} />
           ))}
         </div>
       );
-    case 'table':
-      return renderTableSkeleton();
-    case 'chart':
-      return renderChartSkeleton();
-    case 'list':
-      return renderListSkeleton();
-    default:
-      return renderCardSkeleton();
   }
 }
 
-// Specialized loading components
+// Specialized loading components using enhanced skeletons
 export function CardLoadingSkeleton({ count = 3, className }: { count?: number; className?: string }) {
-  return <LoadingStates type="card" count={count} className={className} />;
+  return <ProxyGridSkeleton count={count} className={className} />;
 }
 
 export function TableLoadingSkeleton({ count = 5, className }: { count?: number; className?: string }) {
-  return <LoadingStates type="table" count={count} className={className} />;
+  return <TableSkeleton rows={count} className={className} />;
 }
 
 export function ChartLoadingSkeleton({ className }: { className?: string }) {
-  return <LoadingStates type="chart" className={className} />;
+  return <ChartSkeleton className={className} />;
 }
 
 export function ListLoadingSkeleton({ count = 5, className }: { count?: number; className?: string }) {
-  return <LoadingStates type="list" count={count} className={className} />;
+  return <SessionListSkeleton count={count} className={className} />;
 }
 
-// Inline loading spinner
-export function LoadingSpinner({ size = 'md', className }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
-  const sizeClasses = {
-    sm: 'w-4 h-4',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8',
-  };
+export function StatsLoadingSkeleton({ className }: { className?: string }) {
+  return <SystemStatsSkeleton className={className} />;
+}
 
+// Re-export enhanced loading components
+export function LoadingSpinner({ size = 'md', className }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
   return (
     <div className={cn('flex items-center justify-center', className)}>
-      <div className={cn('animate-spin rounded-full border-2 border-gray-300 border-t-blue-600', sizeClasses[size])}></div>
+      <InlineLoadingSpinner size={size} />
     </div>
   );
 }
 
-// Button loading state
-export function ButtonLoadingSpinner({ className }: { className?: string }) {
-  return (
-    <div className={cn('animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent', className)}></div>
-  );
-}
+// Enhanced button loading state
+export { ButtonLoadingSpinner };
 
 // Page loading overlay
 export function PageLoadingOverlay({ message = 'Loading...' }: { message?: string }) {

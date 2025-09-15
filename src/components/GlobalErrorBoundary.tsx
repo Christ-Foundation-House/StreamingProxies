@@ -3,18 +3,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
-declare global {
-  interface Window {
-    __NEXT_DATA__?: {
-      page?: string;
-    };
-    next?: {
-      router?: {
-        push: (path: string) => void;
-      };
-    };
-  }
-}
+// Global types are handled by Next.js
 
 interface GlobalErrorBoundaryState {
   hasError: boolean;
@@ -44,11 +33,12 @@ export class GlobalErrorBoundary extends Component<GlobalErrorBoundaryProps, Glo
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Update state with the caught error and its info
-    this.setState({ 
+    this.setState((prevState) => ({
+      ...prevState,
       errorInfo,
-      // Ensure we don't override the error if it's already set
-      ...(this.state.error ? {} : { error })
-    });
+      // Only set error if it's not already set
+      error: prevState.error || error
+    }));
 
     // Log the error to an error reporting service
     console.error('Uncaught error:', error, errorInfo);
