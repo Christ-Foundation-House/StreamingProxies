@@ -1,263 +1,485 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   TrendingUp, 
   TrendingDown, 
   Activity, 
-  Users, 
   Clock, 
+  Users, 
   Zap, 
+  AlertTriangle, 
   DollarSign,
-  AlertTriangle,
-  CheckCircle,
-  XCircle
+  BarChart3,
+  PieChart,
+  LineChart,
+  RefreshCw
 } from 'lucide-react';
 
-export interface MetricData {
+interface MetricData {
+  id: string;
   title: string;
   value: string | number;
+  previousValue?: string | number;
   change: string;
+  changeType: 'increase' | 'decrease' | 'neutral';
   trend: 'up' | 'down' | 'stable';
-  status?: 'healthy' | 'warning' | 'critical';
+  icon: React.ReactNode;
+  category: 'performance' | 'usage' | 'costs' | 'trends';
   description?: string;
   target?: string | number;
+  status: 'healthy' | 'warning' | 'critical' | 'info';
+  lastUpdated: Date;
   unit?: string;
-}
-
-export interface MetricsCategory {
-  id: string;
-  name: string;
-  metrics: MetricData[];
-  color: string;
+  format?: 'number' | 'percentage' | 'currency' | 'duration' | 'bytes';
 }
 
 interface DetailedMetricsDashboardProps {
-  categories: MetricsCategory[];
-  activeCategory: string;
-  onCategoryChange: (categoryId: string) => void;
+  activeCategory: 'performance' | 'usage' | 'costs' | 'trends';
   timeRange: string;
+  onRefresh?: () => void;
+  isLoading?: boolean;
 }
 
-export default function DetailedMetricsDashboard({
-  categories,
-  activeCategory,
-  onCategoryChange,
-  timeRange
+export default function DetailedMetricsDashboard({ 
+  activeCategory, 
+  timeRange, 
+  onRefresh,
+  isLoading = false 
 }: DetailedMetricsDashboardProps) {
-  const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const toggleMetricExpansion = (metricTitle: string) => {
-    const newExpanded = new Set(expandedMetrics);
-    if (newExpanded.has(metricTitle)) {
-      newExpanded.delete(metricTitle);
-    } else {
-      newExpanded.add(metricTitle);
+  // Enhanced mock data with more detailed metrics
+  const allMetrics: MetricData[] = [
+    // Performance Metrics
+    {
+      id: 'response-time',
+      title: 'Average Response Time',
+      value: 45,
+      previousValue: 52,
+      change: '-13.5%',
+      changeType: 'decrease',
+      trend: 'up',
+      icon: <Clock className="h-5 w-5" />,
+      category: 'performance',
+      description: 'Average API response time across all endpoints',
+      target: 50,
+      status: 'healthy',
+      lastUpdated: new Date(),
+      unit: 'ms',
+      format: 'number'
+    },
+    {
+      id: 'uptime',
+      title: 'System Uptime',
+      value: 99.95,
+      previousValue: 99.85,
+      change: '+0.1%',
+      changeType: 'increase',
+      trend: 'up',
+      icon: <Activity className="h-5 w-5" />,
+      category: 'performance',
+      description: 'System availability percentage',
+      target: 99.9,
+      status: 'healthy',
+      lastUpdated: new Date(),
+      unit: '%',
+      format: 'percentage'
+    },
+    {
+      id: 'error-rate',
+      title: 'Error Rate',
+      value: 0.02,
+      previousValue: 0.03,
+      change: '-33.3%',
+      changeType: 'decrease',
+      trend: 'up',
+      icon: <AlertTriangle className="h-5 w-5" />,
+      category: 'performance',
+      description: 'Percentage of failed requests',
+      target: 0.05,
+      status: 'healthy',
+      lastUpdated: new Date(),
+      unit: '%',
+      format: 'percentage'
+    },
+    {
+      id: 'throughput',
+      title: 'Throughput',
+      value: 2.4,
+      previousValue: 2.1,
+      change: '+14.3%',
+      changeType: 'increase',
+      trend: 'up',
+      icon: <Zap className="h-5 w-5" />,
+      category: 'performance',
+      description: 'Data processing throughput',
+      target: 2.0,
+      status: 'healthy',
+      lastUpdated: new Date(),
+      unit: 'Gbps',
+      format: 'number'
+    },
+    // Usage Metrics
+    {
+      id: 'total-streams',
+      title: 'Total Streams',
+      value: 1234,
+      previousValue: 1100,
+      change: '+12.2%',
+      changeType: 'increase',
+      trend: 'up',
+      icon: <Activity className="h-5 w-5" />,
+      category: 'usage',
+      description: 'Total number of active streams',
+      status: 'healthy',
+      lastUpdated: new Date(),
+      format: 'number'
+    },
+    {
+      id: 'unique-viewers',
+      title: 'Unique Viewers',
+      value: 45678,
+      previousValue: 42300,
+      change: '+8.0%',
+      changeType: 'increase',
+      trend: 'up',
+      icon: <Users className="h-5 w-5" />,
+      category: 'usage',
+      description: 'Number of unique viewers',
+      status: 'healthy',
+      lastUpdated: new Date(),
+      format: 'number'
+    },
+    {
+      id: 'peak-concurrent',
+      title: 'Peak Concurrent',
+      value: 892,
+      previousValue: 920,
+      change: '-3.0%',
+      changeType: 'decrease',
+      trend: 'down',
+      icon: <TrendingUp className="h-5 w-5" />,
+      category: 'usage',
+      description: 'Peak concurrent viewers',
+      status: 'warning',
+      lastUpdated: new Date(),
+      format: 'number'
+    },
+    {
+      id: 'data-transfer',
+      title: 'Data Transfer',
+      value: 45.6,
+      previousValue: 37.4,
+      change: '+21.9%',
+      changeType: 'increase',
+      trend: 'up',
+      icon: <Activity className="h-5 w-5" />,
+      category: 'usage',
+      description: 'Total data transferred',
+      status: 'info',
+      lastUpdated: new Date(),
+      unit: 'TB',
+      format: 'bytes'
+    },
+    // Cost Metrics
+    {
+      id: 'monthly-cost',
+      title: 'Monthly Cost',
+      value: 1234,
+      previousValue: 1175,
+      change: '+5.0%',
+      changeType: 'increase',
+      trend: 'down',
+      icon: <DollarSign className="h-5 w-5" />,
+      category: 'costs',
+      description: 'Total monthly operational cost',
+      target: 1200,
+      status: 'warning',
+      lastUpdated: new Date(),
+      unit: '$',
+      format: 'currency'
+    },
+    {
+      id: 'cost-per-stream',
+      title: 'Cost per Stream',
+      value: 0.89,
+      previousValue: 0.97,
+      change: '-8.2%',
+      changeType: 'decrease',
+      trend: 'up',
+      icon: <DollarSign className="h-5 w-5" />,
+      category: 'costs',
+      description: 'Average cost per stream',
+      status: 'healthy',
+      lastUpdated: new Date(),
+      unit: '$',
+      format: 'currency'
+    },
+    {
+      id: 'bandwidth-cost',
+      title: 'Bandwidth Cost',
+      value: 456,
+      previousValue: 407,
+      change: '+12.0%',
+      changeType: 'increase',
+      trend: 'down',
+      icon: <DollarSign className="h-5 w-5" />,
+      category: 'costs',
+      description: 'Bandwidth usage cost',
+      status: 'warning',
+      lastUpdated: new Date(),
+      unit: '$',
+      format: 'currency'
+    },
+    {
+      id: 'infrastructure-cost',
+      title: 'Infrastructure Cost',
+      value: 778,
+      previousValue: 762,
+      change: '+2.1%',
+      changeType: 'increase',
+      trend: 'down',
+      icon: <DollarSign className="h-5 w-5" />,
+      category: 'costs',
+      description: 'Infrastructure and hosting cost',
+      status: 'info',
+      lastUpdated: new Date(),
+      unit: '$',
+      format: 'currency'
     }
-    setExpandedMetrics(newExpanded);
-  };
+  ];
 
-  const getMetricIcon = (title: string, status?: string) => {
-    const iconClass = "h-5 w-5";
+  const filteredMetrics = useMemo(() => {
+    return allMetrics.filter(metric => metric.category === activeCategory);
+  }, [activeCategory]);
+
+  const formatValue = (metric: MetricData): string => {
+    const { value, format, unit } = metric;
     
-    if (status) {
-      switch (status) {
-        case 'healthy':
-          return <CheckCircle className={`${iconClass} text-green-500`} />;
-        case 'warning':
-          return <AlertTriangle className={`${iconClass} text-yellow-500`} />;
-        case 'critical':
-          return <XCircle className={`${iconClass} text-red-500`} />;
-      }
-    }
-
-    // Default icons based on metric title
-    if (title.toLowerCase().includes('response') || title.toLowerCase().includes('time')) {
-      return <Clock className={iconClass} />;
-    }
-    if (title.toLowerCase().includes('user') || title.toLowerCase().includes('viewer')) {
-      return <Users className={iconClass} />;
-    }
-    if (title.toLowerCase().includes('cost') || title.toLowerCase().includes('$')) {
-      return <DollarSign className={iconClass} />;
-    }
-    if (title.toLowerCase().includes('error') || title.toLowerCase().includes('fail')) {
-      return <AlertTriangle className={iconClass} />;
-    }
-    if (title.toLowerCase().includes('throughput') || title.toLowerCase().includes('bandwidth')) {
-      return <Zap className={iconClass} />;
-    }
-    
-    return <Activity className={iconClass} />;
-  };
-
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up':
-        return <TrendingUp className="h-4 w-4 text-green-500" />;
-      case 'down':
-        return <TrendingDown className="h-4 w-4 text-red-500" />;
+    switch (format) {
+      case 'currency':
+        return `${unit}${typeof value === 'number' ? value.toLocaleString() : value}`;
+      case 'percentage':
+        return `${value}${unit || '%'}`;
+      case 'duration':
+        return `${value}${unit || 'ms'}`;
+      case 'bytes':
+        return `${value} ${unit || 'B'}`;
       default:
-        return <div className="h-4 w-4 bg-gray-400 rounded-full" />;
+        return `${typeof value === 'number' ? value.toLocaleString() : value}${unit ? ` ${unit}` : ''}`;
     }
   };
 
-  const getStatusColor = (status?: string) => {
+  const getStatusColor = (status: MetricData['status']) => {
     switch (status) {
       case 'healthy':
-        return 'border-l-green-500 bg-green-50';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'warning':
-        return 'border-l-yellow-500 bg-yellow-50';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'critical':
-        return 'border-l-red-500 bg-red-50';
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'info':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
-        return 'border-l-blue-500 bg-blue-50';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const activeData = categories.find(cat => cat.id === activeCategory);
+  const getTrendIcon = (trend: MetricData['trend'], changeType: MetricData['changeType']) => {
+    if (trend === 'up' && changeType === 'increase') {
+      return <TrendingUp className="h-4 w-4 text-green-600" />;
+    } else if (trend === 'up' && changeType === 'decrease') {
+      return <TrendingDown className="h-4 w-4 text-green-600" />;
+    } else if (trend === 'down' && changeType === 'increase') {
+      return <TrendingUp className="h-4 w-4 text-red-600" />;
+    } else if (trend === 'down' && changeType === 'decrease') {
+      return <TrendingDown className="h-4 w-4 text-red-600" />;
+    }
+    return <Activity className="h-4 w-4 text-gray-600" />;
+  };
 
-  if (!activeData) {
-    return (
-      <Card className="p-6">
-        <div className="text-center text-gray-500">
-          <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>No metrics data available</p>
+  const MetricCard = ({ metric }: { metric: MetricData }) => (
+    <Card 
+      className={`p-6 cursor-pointer transition-all duration-200 hover:shadow-lg ${
+        selectedMetric === metric.id ? 'ring-2 ring-blue-500 shadow-lg' : ''
+      }`}
+      onClick={() => setSelectedMetric(selectedMetric === metric.id ? null : metric.id)}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+              {metric.icon}
+            </div>
+            <Badge className={getStatusColor(metric.status)}>
+              {metric.status}
+            </Badge>
+          </div>
+          
+          <h3 className="text-sm font-medium text-gray-600 mb-1">{metric.title}</h3>
+          <div className="text-2xl font-bold text-gray-900 mb-2">
+            {formatValue(metric)}
+          </div>
+          
+          <div className="flex items-center gap-2 mb-2">
+            {getTrendIcon(metric.trend, metric.changeType)}
+            <span className={`text-sm font-medium ${
+              metric.changeType === 'increase' 
+                ? metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
+                : metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {metric.change}
+            </span>
+            <span className="text-sm text-gray-500">vs last period</span>
+          </div>
+
+          {metric.target && (
+            <div className="text-xs text-gray-500">
+              Target: {formatValue({ ...metric, value: metric.target })}
+            </div>
+          )}
         </div>
-      </Card>
-    );
-  }
+      </div>
+
+      {selectedMetric === metric.id && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-600 mb-2">{metric.description}</p>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>Last updated: {metric.lastUpdated.toLocaleTimeString()}</span>
+            {metric.previousValue && (
+              <span>Previous: {formatValue({ ...metric, value: metric.previousValue })}</span>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+
+  const MetricListItem = ({ metric }: { metric: MetricData }) => (
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+            {metric.icon}
+          </div>
+          <div>
+            <h3 className="font-medium text-gray-900">{metric.title}</h3>
+            <p className="text-sm text-gray-500">{metric.description}</p>
+          </div>
+        </div>
+        
+        <div className="text-right">
+          <div className="text-xl font-bold text-gray-900">
+            {formatValue(metric)}
+          </div>
+          <div className="flex items-center gap-1">
+            {getTrendIcon(metric.trend, metric.changeType)}
+            <span className={`text-sm font-medium ${
+              metric.changeType === 'increase' 
+                ? metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
+                : metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {metric.change}
+            </span>
+          </div>
+        </div>
+        
+        <Badge className={getStatusColor(metric.status)}>
+          {metric.status}
+        </Badge>
+      </div>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {categories.map((category) => (
+      {/* Dashboard Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 capitalize">
+            {activeCategory} Metrics
+          </h2>
+          <p className="text-sm text-gray-500">
+            Detailed analytics for {timeRange} period
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="h-8 px-3"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="h-8 px-3"
+            >
+              <LineChart className="h-4 w-4" />
+            </Button>
+          </div>
+          
           <Button
-            key={category.id}
-            variant={activeCategory === category.id ? "default" : "outline"}
-            onClick={() => onCategoryChange(category.id)}
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isLoading}
             className="gap-2"
-            style={{
-              backgroundColor: activeCategory === category.id ? category.color : undefined,
-              borderColor: category.color
-            }}
           >
-            {category.name}
-            <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">
-              {category.metrics.length}
-            </span>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
-        ))}
+        </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeData.metrics.map((metric, index) => (
-          <Card 
-            key={index} 
-            className={`p-6 border-l-4 transition-all duration-200 hover:shadow-md cursor-pointer ${getStatusColor(metric.status)}`}
-            onClick={() => toggleMetricExpansion(metric.title)}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                {getMetricIcon(metric.title, metric.status)}
-                <div>
-                  <h3 className="font-medium text-gray-900 text-sm">{metric.title}</h3>
-                  {metric.unit && (
-                    <p className="text-xs text-gray-500">in {metric.unit}</p>
-                  )}
-                </div>
-              </div>
-              {getTrendIcon(metric.trend)}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-bold text-gray-900">
-                  {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-                </span>
-                <span className={`text-sm font-medium ${
-                  metric.trend === 'up' ? 'text-green-600' : 
-                  metric.trend === 'down' ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  {metric.change}
-                </span>
-              </div>
-
-              {metric.target && (
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Target:</span>
-                  <span className="font-medium">{metric.target}</span>
-                </div>
-              )}
-
-              {expandedMetrics.has(metric.title) && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  {metric.description && (
-                    <p className="text-sm text-gray-600 mb-3">{metric.description}</p>
-                  )}
-                  
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Time Range:</span>
-                      <span className="font-medium">{timeRange}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Last Updated:</span>
-                      <span className="font-medium">2 min ago</span>
-                    </div>
-                    {metric.status && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Status:</span>
-                        <span className={`font-medium capitalize ${
-                          metric.status === 'healthy' ? 'text-green-600' :
-                          metric.status === 'warning' ? 'text-yellow-600' :
-                          'text-red-600'
-                        }`}>
-                          {metric.status}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        ))}
-      </div>
+      {/* Metrics Display */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredMetrics.map((metric) => (
+            <MetricCard key={metric.id} metric={metric} />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredMetrics.map((metric) => (
+            <MetricListItem key={metric.id} metric={metric} />
+          ))}
+        </div>
+      )}
 
       {/* Summary Stats */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          {activeData.name} Summary
+          {activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} Summary
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {activeData.metrics.filter(m => m.status === 'healthy').length}
+            <div className="text-2xl font-bold text-green-600 mb-1">
+              {filteredMetrics.filter(m => m.status === 'healthy').length}
             </div>
-            <p className="text-sm text-gray-600">Healthy</p>
+            <p className="text-sm text-gray-600">Healthy Metrics</p>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-600">
-              {activeData.metrics.filter(m => m.status === 'warning').length}
+            <div className="text-2xl font-bold text-yellow-600 mb-1">
+              {filteredMetrics.filter(m => m.status === 'warning').length}
             </div>
-            <p className="text-sm text-gray-600">Warning</p>
+            <p className="text-sm text-gray-600">Warning Metrics</p>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {activeData.metrics.filter(m => m.status === 'critical').length}
+            <div className="text-2xl font-bold text-red-600 mb-1">
+              {filteredMetrics.filter(m => m.status === 'critical').length}
             </div>
-            <p className="text-sm text-gray-600">Critical</p>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {activeData.metrics.filter(m => m.trend === 'up').length}
-            </div>
-            <p className="text-sm text-gray-600">Improving</p>
+            <p className="text-sm text-gray-600">Critical Metrics</p>
           </div>
         </div>
       </Card>
